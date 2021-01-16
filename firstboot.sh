@@ -1,6 +1,7 @@
 sudo apt update
 sudo apt dist-upgrade -y
-sudo apt install -y git python3 python3-pip python-dev python-gpiozero
+# If not using docker
+# sudo apt install -y git python3 python3-pip python-dev python-gpiozero
 
 # Install some required packages first
 sudo apt update

@@ -4,7 +4,7 @@
 
 # To Do: 
 # (v) 1. Make the image name a settings variable.
-#   2. Make the settings file a cli parameter and split settings per device.
+# (v) 2. Make the settings file a cli parameter and split settings per device.
 
 # parse command line arguments
 usage() { echo "Usage: $0 -s settings.ini" 1>&2; exit 1; }
