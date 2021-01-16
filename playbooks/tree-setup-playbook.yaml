@@ -1,0 +1,18 @@
+---
+- name: First setup
+  hosts: tree
+  become: yes
+  tasks:
+  - name: clone library
+    git:
+      repo: https://github.com/presiannedyalkov/xmas-tree
+      dest: /home/pi/tree
+  - name: Creates an entry for start after reboot
+    become_user: pi
+    cron:
+      name: "start script after reboot"
+      special_time: reboot
+      job: python "/home/pi/tree/python/random_leds.py"
+  - name: run code in background
+    shell: 
+      cmd: ( ( nohup python /home/pi/tree/python/random_leds.py 1>/dev/null 2>&1 ) & )

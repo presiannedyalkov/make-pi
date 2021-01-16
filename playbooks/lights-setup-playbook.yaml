@@ -1,0 +1,19 @@
+---
+- name: First setup
+  hosts: lights_entrance
+  become: yes
+  tasks:
+  - name: clone library
+    git:
+      repo: https://github.com/presiannedyalkov/lights
+      dest: /home/pi/lights
+  - name: Creates an entry for start after reboot
+    become_user: pi
+    cron:
+      name: "start script after reboot"
+      special_time: reboot
+      job: "python /home/pi/lights/lights.py"
+  #- name: run docker  
+  - name: run code in background
+    shell: 
+      cmd: ( ( nohup python /home/pi/lights/lights.py 1>/dev/null 2>&1 ) & )

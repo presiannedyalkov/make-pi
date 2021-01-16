@@ -1,38 +1,33 @@
 #!/bin/bash
-# MIT License 
-# Copyright (c) 2017 Ken Fallon http://kenfallon.com
-# 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# 
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 
-# v1.1 - changes to reflect that the sha_sum is now SHA-256
-# v1.2 - Changes to split settings to different file, and use losetup
+# Forked from: https://github.com/kenfallon/fix-ssh-on-pi
 
-# Credits to:
-# - http://hackerpublicradio.org/correspondents.php?hostid=225
-# - https://gpiozero.readthedocs.io/en/stable/pi_zero_otg.html#legacy-method-sd-card-required
-# - https://github.com/nmcclain/raspberian-firstboot
+# To Do: 
+# (v) 1. Make the image name a settings variable.
+#   2. Make the settings file a cli parameter and split settings per device.
 
-# Change the settings in the file mentioned below.
+# parse command line arguments
+usage() { echo "Usage: $0 -s settings.ini" 1>&2; exit 1; }
 
-settings_file="fix-ssh-on-pi.ini"
+while getopts "s:" o; do
+    case "${o}" in
+        s)
+            settings_file=${OPTARG}
+            ;;
+        [?])
+            usage
+		        exit 1
+            ;;
+    esac
+done
+shift $((OPTIND-1))
 
-# You should not need to change anything beyond here.
+echo "settings_file = ${settings_file}"
+
+if [ ! -e "${settings_file}" ]; then
+    usage
+fi
+
 
 if [ -e "${settings_file}" ]
 then
@@ -40,9 +35,6 @@ then
 elif [ -e "${HOME}/${settings_file}" ]
 then
   source "${HOME}/${settings_file}"
-elif [ -e "${0%.*}.ini" ]
-then
-  source "${0%.*}.ini"
 else
   echo "ERROR: Can't find the Settings file \"${settings_file}\""
   exit 1
@@ -53,6 +45,9 @@ variables=(
   pi_password_clear
   public_key_file
   wifi_file
+  hostname
+  image_to_download
+  url_base
 )
 
 for variable in "${variables[@]}"
@@ -63,8 +58,7 @@ do
   fi
 done
 
-image_to_download="https://downloads.raspberrypi.org/raspios_full_armhf_latest"
-url_base="https://downloads.raspberrypi.org/raspios_full_armhf/images/"
+# Check how to deal with this for os different than raspios
 version="$( wget -q ${url_base} -O - | xmllint --html --xmlout --xpath 'string(/html/body/table/tr[last()-1]/td/a/@href)' - )"
 sha_file=$( wget -q ${url_base}/${version} -O - | xmllint --html --xmlout --xpath 'string(/html/body/table/tr/td/a[contains(@href, "256")])' - )
 sha_sum=$( wget -q "${url_base}/${version}/${sha_file}" -O - | awk '{print $1}' )
@@ -97,11 +91,11 @@ function umount_sdcard () {
 }
 
 # Download the latest image, using the  --continue "Continue getting a partially-downloaded file"
-wget --continue ${image_to_download} -O raspbian_image.zip
+wget --continue ${image_to_download} -O image.zip
 
 echo "Checking the SHA-1 of the downloaded image matches \"${sha_sum}\""
 
-if [ $( sha256sum raspbian_image.zip | grep ${sha_sum} | wc -l ) -eq "1" ]
+if [ $( sha256sum image.zip | grep ${sha_sum} | wc -l ) -eq "1" ]
 then
     echo "The sha_sums match"
 else
@@ -115,10 +109,10 @@ then
 fi
 
 # unzip
-extracted_image=$( 7z l raspbian_image.zip | awk '/-raspios-/ {print $NF}' )
+extracted_image=$( 7z l image.zip | awk '/-raspios-/ {print $NF}' )
 echo "The name of the image is \"${extracted_image}\""
 
-7z x -y raspbian_image.zip
+7z x -y image.zip
 
 if [ ! -e ${extracted_image} ]
 then
@@ -154,13 +148,12 @@ then
     exit 9
 fi
 
+echo '#!/bin/bash' > "${sdcard_mount}/firstboot.sh"
+echo "sed \"s/raspberrypi/${hostname}/g\" -i /etc/hostname /etc/hosts" >> "${sdcard_mount}/firstboot.sh"
 if [ -e "${first_boot}" ]
 then
-  cp -v "${first_boot}" "${sdcard_mount}/firstboot.sh"
-else
-  echo '#!/bin/bash' > "${sdcard_mount}/firstboot.sh"
-  echo "sed \"s/raspberrypi/\$( sed 's/://g' /sys/class/net/eth0/address )/g\" -i /etc/hostname /etc/hosts" >> "${sdcard_mount}/firstboot.sh"
-  echo '/sbin/shutdown -r 5 "reboot in five minutes"' >> "${sdcard_mount}/firstboot.sh"
+  echo "" >> "${sdcard_mount}/firstboot.sh"
+  cat "${first_boot}" >> "${sdcard_mount}/firstboot.sh"
 fi
 
 umount_sdcard
@@ -185,6 +178,7 @@ sed -e 's;^#PasswordAuthentication.*$;PasswordAuthentication no;g' -e 's;^Permit
 mkdir "${sdcard_mount}/home/pi/.ssh"
 chmod 0700 "${sdcard_mount}/home/pi/.ssh"
 chown 1000:1000 "${sdcard_mount}/home/pi/.ssh"
+echo ${public_key_file}
 cat ${public_key_file} >> "${sdcard_mount}/home/pi/.ssh/authorized_keys"
 chown 1000:1000 "${sdcard_mount}/home/pi/.ssh/authorized_keys"
 chmod 0600 "${sdcard_mount}/home/pi/.ssh/authorized_keys"
