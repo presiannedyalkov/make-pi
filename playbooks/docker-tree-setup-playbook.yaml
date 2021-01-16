@@ -8,5 +8,4 @@
       cmd: docker build -t tree https://github.com/presiannedyalkov/xmas-tree.git
   - name: run docker image
     shell:
-      # chdir: /home/pi/xmas-tree
-      cmd: docker run --rm --cap-add SYS_RAWIO --device /dev/mem --name tree -t tree
+      cmd: docker run --device /dev/gpiomem --name tree -t tree
