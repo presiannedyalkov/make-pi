@@ -91,6 +91,8 @@ function umount_sdcard () {
 }
 
 # Download the latest image, using the  --continue "Continue getting a partially-downloaded file"
+mkdir images
+cd images
 wget --continue ${image_to_download} -O image.zip
 
 echo "Checking the SHA-1 of the downloaded image matches \"${sha_sum}\""
